@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <title>Event Countdown App</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Event Countdown App</h1>
+        <!-- Event Input Form -->
+        <form id="eventForm">
+            <input type="text" id="name" placeholder="Event Name" required>
+            <div class="form-row">
+                <input type="date" id="date" required>
+                <input type="time" id="time" placeholder="HH:mm"> <!-- Timing box -->
+            </div>
+            <button type="submit">Add Event</button>
+        </form>
+
+        <!-- Event List -->
+        <ul id="eventList"></ul>
+    </div>
+
+    <!-- Modal for Editing Events -->
+    <div id="editModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Edit Event</h2>
+            <form id="editForm">
+                <input type="text" id="editName" placeholder="Event Name" required>
+                <input type="date" id="editDate" required>
+                <input type="time" id="editTime" placeholder="HH:mm">
+                <button type="submit">Update Event</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let editingEventName = null;
+
+        function fetchEvents() {
+            fetch('/get-events')
+                .then(response => response.json())
+                .then(events => {
+                    const eventList = document.getElementById('eventList');
+                    eventList.innerHTML = '';
+                    events.forEach(event => {
+                        const li = document.createElement('li');
+                        li.className = 'event-item';
+                        li.innerHTML = `
+                            <div>
+                                <strong>${event.name}</strong>
+                                <p>${event.date} ${event.time}</p>
+                                <p class="countdown" id="countdown-${event.name}"></p>
+                            </div>
+                            <div>
+                                <button class="update-btn" onclick="openModal('${event.name}', '${event.date}', '${event.time}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="delete-btn" onclick="removeEvent('${event.name}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        eventList.appendChild(li);
+                        startCountdown(event.name, event.date, event.time, event.name);
+                    });
+                });
+        }
+
+        function removeEvent(id) {
+            fetch(`/delete-event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: id })
+            })
+            .then(response => response.json())
+            .then(() => fetchEvents());
+        }
+
+        document.getElementById('eventForm').addEventListener('submit', event => {
+            event.preventDefault();
+            const name = document.getElementById('name').value;
+            const date = document.getElementById('date').value;
+            const time = document.getElementById('time').value || '00:00';
+
+            fetch('/add-event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, date, time })
+            })
+                .then(response => response.json())
+                .then(() => {
+                    fetchEvents();
+                    document.getElementById('eventForm').reset();
+                });
+        });
+
+        function openModal(eventName, eventDate, eventTime) {
+            editingEventName = eventName;
+            document.getElementById('editName').value = eventName;
+            document.getElementById('editDate').value = eventDate;
+            document.getElementById('editTime').value = eventTime;
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newName = document.getElementById('editName').value;
+            const newDate = document.getElementById('editDate').value;
+            const newTime = document.getElementById('editTime').value || '00:00';
+
+            await fetch('/update-event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ oldName: editingEventName, newName, newDate, newTime })
+            });
+
+            closeModal();
+            fetchEvents();
+        });
+
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('editModal')) {
+                closeModal();
+            }
+        };
+
+        function startCountdown(elementId, eventDate, eventTime, eventName) {
+            const countdownElement = document.getElementById(`countdown-${elementId}`);
+            const targetDateTime = new Date(`${eventDate}T${eventTime}`).getTime();
+
+            function updateCountdown() {
+                const now = new Date().getTime();
+                const distance = targetDateTime - now;
+
+                if (distance < 0) {
+                    countdownElement.textContent = `${eventName} has ended!`;
+                    return;
+                }
+
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                countdownElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            }   
+
+            updateCountdown();
+            const intervalId = setInterval(() => {
+                updateCountdown();
+                if (new Date().getTime() > targetDateTime) {
+                    clearInterval(intervalId);
+                    alert(`${eventName} has ended!`);
+                }
+            }, 1000);
+        }
+
+        fetchEvents();
+    </script>
+</body>
+</html>
