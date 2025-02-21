@@ -10,13 +10,14 @@ body {
 }
 
 .container {
-    background: #ffffff;
+    background: #e0d5d5;
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     width: 90%;
     max-width: 600px;
     text-align: center;
+    align-items: center;
 }
 
 h1 {
@@ -30,6 +31,7 @@ form {
     flex-direction: column;
     gap: 10px;
     margin-bottom: 20px;
+    align-items: center;
 }
 
 form input, form button {
@@ -72,6 +74,9 @@ ul {
     margin-bottom: 10px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+}
+.n{
     align-items: center;
 }
 
