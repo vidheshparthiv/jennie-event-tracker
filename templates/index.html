@@ -8,153 +8,167 @@
     <title>Event Countdown App</title>
 </head>
 <body>
-    <div class="container">
-        <h1>Event Countdown App</h1>
-        <form id="eventForm">
-            <input type="text" id="name" placeholder="Event Name" required>
-            <div class="form-row">
-                <input type="date" id="date" required>
-                <input type="time" id="time" placeholder="HH:mm">
-            </div>
-            <button type="submit">Add Event</button>
-        </form>
-        <ul id="eventList"></ul>
-    </div>
-
-    <div id="editModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Edit Event</h2>
-            <form id="editForm">
-                <input type="text" id="editName" placeholder="Event Name" required>
-                <input type="date" id="editDate" required>
-                <input type="time" id="editTime" placeholder="HH:mm">
-                <button type="submit">Update Event</button>
-            </form>
+<div class="container">
+    <h1>Event Countdown App</h1>
+    <form id="eventForm">
+        <input type="text" id="name" placeholder="Event Name" required>
+        <div class="form-row">
+            <input type="date" id="date" required>
+            <input type="time" id="time" placeholder="HH:mm">
         </div>
+        <button type="submit">Add Event</button>
+    </form>
+    <ul id="eventList"></ul>
+    <p id="emptyState" style="text-align:center; display:none;">No upcoming events.</p>
+</div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Edit Event</h2>
+        <form id="editForm">
+            <input type="text" id="editName" placeholder="Event Name" required>
+            <input type="date" id="editDate" required>
+            <input type="time" id="editTime" placeholder="HH:mm">
+            <button type="submit">Update Event</button>
+        </form>
     </div>
+</div>
 
-    <script>
-        let editingEventId = null;
-        const countdownIntervals = new Map();
+<script>
+let editingEventId = null;
+const countdownIntervals = new Map();
 
-        function fetchEvents() {
-            fetch('/get-events')
-                .then(response => response.json())
-                .then(events => {
-                    const eventList = document.getElementById('eventList');
-                    eventList.innerHTML = '';
-                    events.forEach(event => {
-                        const li = document.createElement('li');
-                        li.className = 'event-item';
-                        li.innerHTML = `
-                            <div>
-                                <strong>${event.name}</strong>
-                                <p>${event.date} ${event.time}</p>
-                                <p class="countdown" id="countdown-${event.id}"></p>
-                            </div>
-                            <div>
-                                <button class="update-btn" onclick="openModal('${event.id}', '${event.name}', '${event.date}', '${event.time}')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="delete-btn" onclick="removeEvent('${event.id}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        `;
-                        eventList.appendChild(li);
-                        startCountdown(event.id, event.date, event.time, event.name);
-                    });
-                });
-        }
+function fetchEvents() {
+    fetch('/get-events')
+        .then(response => response.json())
+        .then(events => {
+            events.sort((a,b) => new Date(a.date+'T'+a.time) - new Date(b.date+'T'+b.time));
+            const eventList = document.getElementById('eventList');
+            eventList.innerHTML = '';
+            const emptyState = document.getElementById('emptyState');
+            if(events.length === 0) emptyState.style.display = 'block';
+            else emptyState.style.display = 'none';
 
-        function removeEvent(id) {
-            fetch('/delete-event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id })
-            }).then(() => fetchEvents());
-        }
-
-        document.getElementById('eventForm').addEventListener('submit', event => {
-            event.preventDefault();
-            const name = document.getElementById('name').value;
-            const date = document.getElementById('date').value;
-            const time = document.getElementById('time').value || '00:00';
-
-            if (new Date(`${date}T${time}`).getTime() < new Date().getTime()) {
-                alert('Event date/time cannot be in the past!');
-                return;
-            }
-
-            fetch('/add-event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, date, time })
-            }).then(() => {
-                fetchEvents();
-                document.getElementById('eventForm').reset();
+            events.forEach(event => {
+                const li = document.createElement('li');
+                li.className = 'event-item';
+                li.innerHTML = `
+                    <div>
+                        <strong>${event.name}</strong>
+                        <p>${event.date} ${event.time}</p>
+                        <p class="countdown" id="countdown-${event.id}"></p>
+                    </div>
+                    <div>
+                        <button class="update-btn" onclick="openModal('${event.id}', '${event.name}', '${event.date}', '${event.time}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="delete-btn" onclick="removeEvent('${event.id}', '${event.name}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                eventList.appendChild(li);
+                startCountdown(event.id, event.date, event.time, event.name);
             });
         });
+}
 
-        function openModal(id, name, date, time) {
-            editingEventId = id;
-            document.getElementById('editName').value = name;
-            document.getElementById('editDate').value = date;
-            document.getElementById('editTime').value = time;
-            document.getElementById('editModal').style.display = 'flex';
-        }
+function removeEvent(id, name) {
+    if(!confirm(`Are you sure you want to delete "${name}"?`)) return;
+    fetch('/delete-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    }).then(() => fetchEvents());
+}
 
-        function closeModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
+document.getElementById('eventForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const name = document.getElementById('name').value;
+    const date = document.getElementById('date').value;
+    const time = document.getElementById('time').value || '23:59';
 
-        document.getElementById('editForm').addEventListener('submit', async e => {
-            e.preventDefault();
-            const newName = document.getElementById('editName').value;
-            const newDate = document.getElementById('editDate').value;
-            const newTime = document.getElementById('editTime').value || '00:00';
+    if (new Date(`${date}T${time}`).getTime() < new Date().getTime()) {
+        alert('Event date/time cannot be in the past!');
+        return;
+    }
 
-            await fetch('/update-event', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: editingEventId, newName, newDate, newTime })
-            });
-
-            closeModal();
-            fetchEvents();
-        });
-
-        window.onclick = function(event) {
-            if (event.target == document.getElementById('editModal')) closeModal();
-        };
-
-        function startCountdown(id, date, time, name) {
-            if (countdownIntervals.has(id)) clearInterval(countdownIntervals.get(id));
-
-            const countdownElement = document.getElementById(`countdown-${id}`);
-            const target = new Date(`${date}T${time}`).getTime();
-
-            function update() {
-                const now = new Date().getTime();
-                const diff = target - now;
-                if (diff <= 0) {
-                    countdownElement.textContent = `${name} has ended!`;
-                    clearInterval(countdownIntervals.get(id));
-                    return;
-                }
-                const days = Math.floor(diff / (1000*60*60*24));
-                const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
-                const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
-                const seconds = Math.floor((diff % (1000*60)) / 1000);
-                countdownElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
-            }
-
-            update();
-            countdownIntervals.set(id, setInterval(update, 1000));
-        }
-
+    fetch('/add-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, date, time })
+    }).then(() => {
         fetchEvents();
-    </script>
+        document.getElementById('eventForm').reset();
+    });
+});
+
+function openModal(id, name, date, time) {
+    editingEventId = id;
+    document.getElementById('editName').value = name;
+    document.getElementById('editDate').value = date;
+    document.getElementById('editTime').value = time;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
+document.getElementById('editForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const newName = document.getElementById('editName').value;
+    const newDate = document.getElementById('editDate').value;
+    const newTime = document.getElementById('editTime').value || '23:59';
+
+    await fetch('/update-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingEventId, newName, newDate, newTime })
+    });
+
+    closeModal();
+    fetchEvents();
+});
+
+window.onclick = function(event) {
+    if (event.target == document.getElementById('editModal')) closeModal();
+};
+
+window.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeModal();
+});
+
+function startCountdown(id, date, time, name) {
+    if (countdownIntervals.has(id)) clearInterval(countdownIntervals.get(id));
+
+    const countdownElement = document.getElementById(`countdown-${id}`);
+    const target = new Date(`${date}T${time}`).getTime();
+
+    function update() {
+        const now = new Date().getTime();
+        const diff = target - now;
+        if (diff <= 0) {
+            countdownElement.textContent = `${name} has ended!`;
+            clearInterval(countdownIntervals.get(id));
+            return;
+        }
+        const days = Math.floor(diff / (1000*60*60*24));
+        const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+        const minutes = Math.floor((diff % (1000*60*60)) / (1000*60));
+        const seconds = Math.floor((diff % (1000*60)) / 1000);
+        countdownElement.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+
+        if(diff < 24*60*60*1000) countdownElement.style.color = 'red';
+        else countdownElement.style.color = 'green';
+    }
+
+    update();
+    countdownIntervals.set(id, setInterval(update, 1000));
+}
+
+fetchEvents();
+</script>
 </body>
 </html>
